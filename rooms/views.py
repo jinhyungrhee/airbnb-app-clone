@@ -1,3 +1,69 @@
-from django.shortcuts import render
+from rest_framework.decorators import api_view # (1)함수형 뷰 사용
+#from rest_framework.views import APIView # (2)클래스형 뷰 사용
+from rest_framework.generics import ListAPIView, RetrieveAPIView # (3)제네릭 뷰 사용
+from rest_framework.response import Response
+from rest_framework import status
+from .models import Room
+from .serializers import ReadRoomSerializer, WriteRoomSerializer
 
-# Create your views here.
+# 1. ListRooms
+# (1)함수형 뷰 사용 : api_view (제네릭뷰가 아니기 때문에 pagination 기능 X)
+# [@api_view] : django가 views를 처리하는 방식을 바꿀 수 있음. 해당 뷰는 rest framework에서 처리됨.
+@api_view(["GET", "POST"])
+def rooms_view(request):
+  if request.method == "GET":
+    rooms = Room.objects.all()[:5]
+    serializer = ReadRoomSerializer(rooms, many=True).data
+    return Response(serializer)
+  elif request.method == "POST":
+    if not request.user.is_authenticated: # 로그인하지 않은 유저의 경우 401 에러 리턴
+      return Response(status=status.HTTP_401_UNAUTHORIZED)
+    # serializer를 이용해서 room을 생성
+    serializer = WriteRoomSerializer(data=request.data)
+    # print(dir(serializer))
+    if serializer.is_valid(): # False : 전송한 json 데이터 형식이 serializer에서 지정한 데이터 형식과 일치하지 않음!
+      # serializer.create() # (주의) 절대 create, update method를 직접 호출하면 안됨!!! -> 대신 save method 호출!!!
+      # [save()] : 새로운 room을 생성하는지 업데이트하는지 감지하여 create()나 update()를 대신 호출해줌
+      # room을 만들 때는 owner(=user) 정보가 반드시 필요(not null)하므로 save method에 user에 관한 데이터를 보내주어야 함
+      room = serializer.save(user=request.user) # create method에서 리턴된 instance를 가져와 'room'에 저장
+      room_serializer = ReadRoomSerializer(room).data
+      return Response(data=room_serializer, status=status.HTTP_200_OK) # ReadRoomSerializer를 사용해 생성된 room 객체 보여줌
+    else:
+      return Response(status=status.HTTP_400_BAD_REQUEST)
+
+  # rooms = Room.objects.all()
+  # serialized_rooms = RoomSerializer(rooms, many=True) # 여러개의 room들에 대해서 serialize할 수 있도록
+  # return Response(data=serialized_rooms.data)
+
+'''
+# (2) 클래스형 뷰 사용 : APIView
+class ListRoomsView(APIView):
+
+  def get(self, request):
+    rooms = Room.objects.all()
+    serializer = RoomSerializer(rooms, many=True)
+    return Response(serializer.data)
+
+  # POST 기능 추가 가능
+  # def post(self, request): 
+  #   pass
+'''
+'''
+# (3) 제네릭 뷰 사용 : ListAPIView (많은 것을 커스터마이징할 필요 없을 때 간단하게 사용)
+# [generic view] : page 등 여러가지 정보를 가진 뷰, 제네릭 뷰를 사용해야 간편한 pagination 기능 사용 가능.
+class ListRoomsView(ListAPIView):
+  # [queryset 필요]
+  queryset = Room.objects.all()
+  # [serializer_class 필요]
+  serializer_class = RoomSerializer
+'''
+
+# 2. See Room
+class SeeRoomView(RetrieveAPIView):
+  # [queryset 필요] -> queryset은 하나의 객체가 아닌 '리스트'를 의미함!
+  queryset = Room.objects.all()
+  # [serializer_class 필요]
+  # serializer_class = BigRoomSerializer
+  serializer_class = ReadRoomSerializer
+  # [pk customizing]
+  # lookup_url_kwarg = "pkkk"
