@@ -19,7 +19,7 @@ urlpatterns = router.urls
 # => ViewSet이 내부적으로 어떻게 동작하는지 알 수 있음!
 
 urlpatterns = [
-  path("", views.rooms_view), # 함수형 뷰 url
-  # path("list/", views.ListRoomsView.as_view()), # 클래스형 뷰(제네릭 뷰) url
-  path("<int:pk>/", views.SeeRoomView.as_view()),
+  # path("", views.rooms_view), # 함수형 뷰 url
+  path("", views.RoomsView.as_view()), # 클래스형 뷰(제네릭 뷰) url
+  path("<int:pk>/", views.RoomView.as_view()),
 ]
