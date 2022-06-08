@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from users.serializers import UserSerializer
+from users.serializers import RelatedUserSerializer
 from .models import Room
 
 '''
@@ -13,8 +13,8 @@ class RoomSerializer(serializers.Serializer):
 
 # 1.List Rooms, See Room에 사용되는 serializer (간단하게 ModelSerializer 사용)
 class ReadRoomSerializer(serializers.ModelSerializer):
-  # user 세부정보를 가져오기 위해 UserSerializer 사용
-  user = UserSerializer()
+  # user 세부정보를 가져오기 위해 UserSerializer 사용(Relationship을 위해 사용)
+  user = RelatedUserSerializer()
 
   class Meta:
     model = Room
