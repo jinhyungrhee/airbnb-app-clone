@@ -25,6 +25,24 @@ class ReadUserSerializer(serializers.ModelSerializer):
       "last_login", 
       "is_superuser", 
       "is_staff", 
-      "is_active", 
+      "is_active",
+      "favs",
       "date_joined",
     )
+
+# 일일이 수동으로 작성하지 않고 자동으로 만들어주는 ModelSerializer 사용
+class WriteUserSerializer(serializers.ModelSerializer):
+
+  class Meta:
+    model = User
+    fields = (
+      "username",
+      "first_name",
+      "last_name",
+      "email"
+    )
+
+  # validate 함수
+  def validate_first_name(self, value):
+    print(value)
+    return value.upper() # 반드시 value나 data를 리턴해야함!
