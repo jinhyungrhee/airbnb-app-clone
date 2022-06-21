@@ -20,7 +20,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "cc)*5=(s+i2-&9x7&&&o+y7$g5!db3tvu85ykok#mwxf#6gir2"
+SECRET_KEY = "cc)*5=(s+i2-&9x7&&&o+y7$g5!db3tvu85ykok#mwxf#6gir2" # 장고가 세션과 같은 것들을 encode하기 위해 사용하는 string
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -141,4 +141,11 @@ REST_FRAMEWORK = {
     # pagination
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     "PAGE_SIZE": 10,
+    # authentication
+    # 두 가지 인증 방법 (BasicAuthentication / SessionAuthentication)
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        # 'rest_framework.authentication.BasicAuthentication',
+        'config.authentication.JWTAuthentication', # config 폴더에 생성한 Custom Authentication 사용
+        'rest_framework.authentication.SessionAuthentication',
+    ]
 }
