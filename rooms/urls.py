@@ -21,5 +21,6 @@ urlpatterns = router.urls
 urlpatterns = [
   # path("", views.rooms_view), # 함수형 뷰 url
   path("", views.RoomsView.as_view()), # 클래스형 뷰(제네릭 뷰) url
+  path("search/", views.room_search),
   path("<int:pk>/", views.RoomView.as_view()),
 ]

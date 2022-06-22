@@ -3,6 +3,8 @@ from rest_framework.views import APIView # (2)클래스형 뷰 사용
 # from rest_framework.generics import ListAPIView, RetrieveAPIView # (3)제네릭 뷰 사용
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.pagination import PageNumberPagination
 from .models import Room
 from .serializers import RoomSerializer
 
@@ -38,12 +40,21 @@ def rooms_view(request):
   # return Response(data=serialized_rooms.data)
 '''
 
+# custom pagination
+class OwnPagination(PageNumberPagination):
+  page_size = 20
+  # 원하는 설정 추가 가능
+
 # (2) 클래스형 뷰 사용 : APIView
 class RoomsView(APIView):
   def get(self, request):
-    rooms = Room.objects.all()[:5]
-    serializer = RoomSerializer(rooms, many=True).data
-    return Response(serializer)
+    # Manual Pagination(ViewSet을 이용하면 자동으로 해줌)
+    paginator = OwnPagination()
+    rooms = Room.objects.all()
+    # reqeust를 paginator에게 parsing해줌 -> paginator가 page query argument를 찾아내야 함(?page=2)
+    results = paginator.paginate_queryset(rooms, request)
+    serializer = RoomSerializer(results, many=True)
+    return paginator.get_paginated_response(serializer.data) # 단순 serializer 리턴 대신, paginator의 응답을 리턴해줌(count, previous, next 정보)
 
   def post(self, request): 
     if not request.user.is_authenticated: # 로그인하지 않은 유저의 경우 401 에러 리턴
@@ -139,3 +150,16 @@ class RoomView(APIView):
       return Response(status=status.HTTP_200_OK)
     else:
       return Response(status=status.HTTP_404_NOT_FOUND)
+
+# Room Search
+# TODO1 : 원하는 Room 찾기
+# TODO2 : Pagenation
+@api_view(["GET"])
+def room_search(request):
+  # manual paginator
+  paginator = OwnPagination()
+  # 모든 room이 아닌 조건에 맞는 room만 가져옴
+  rooms = Room.objects.filter()
+  results = paginator.paginate_queryset(rooms, request)
+  serializer = RoomSerializer(results, many=True)
+  return paginator.get_paginated_response(serializer.data) # 단순 serializer 리턴 대신, paginator의 응답을 리턴해줌(count, previous, next 정보)
