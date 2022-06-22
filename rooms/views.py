@@ -51,7 +51,7 @@ class RoomsView(APIView):
     # Manual Pagination(ViewSet을 이용하면 자동으로 해줌)
     paginator = OwnPagination()
     rooms = Room.objects.all()
-    # reqeust를 paginator에게 parsing해줌 -> paginator가 page query argument를 찾아내야 함(?page=2)
+    # reqeust를 paginator에게 parsing해줌 -> paginator가 page query argument를 찾아내야 함(/?page=2)
     results = paginator.paginate_queryset(rooms, request)
     serializer = RoomSerializer(results, many=True)
     return paginator.get_paginated_response(serializer.data) # 단순 serializer 리턴 대신, paginator의 응답을 리턴해줌(count, previous, next 정보)
@@ -156,10 +156,44 @@ class RoomView(APIView):
 # TODO2 : Pagenation
 @api_view(["GET"])
 def room_search(request):
+  # argument로 보내질 것들(/?max_price=30)
+  max_price = request.GET.get('max_price', None) # 만약 url에 포함되어 있지 않으면, 그 argument는 None이라는 의미
+  min_price = request.GET.get('min_price', None)
+  beds = request.GET.get('beds', None)
+  bedrooms = request.GET.get('bedrooms', None)
+  bathrooms = request.GET.get('bathrooms', None)
+  lat = request.GET.get('lat', None)
+  lng = request.GET.get('lng', None)
+  # 여러 조건들로 가득찬 dictionary 생성
+  filter_kwargs = {}
+  # __lte(less than or equal), __gte(greater than or equal), __startswith 연산 제공(DRF)
+  if max_price is not None:
+    filter_kwargs["price__lte"] = max_price
+  if min_price is not None:
+    filter_kwargs["price__gte"] = min_price
+  if beds is not None:
+    filter_kwargs["beds__gte"] = beds
+  if bedrooms is not None:
+    filter_kwargs["bedrooms__gte"] = bedrooms
+  if bathrooms is not None:
+    filter_kwargs["bathrooms__gte"] = bathrooms
+  if lat is not None and lng is not None: # radius search
+    filter_kwargs["lat__gte"] = float(lat) - 0.005
+    filter_kwargs["lat__lte"] = float(lat) + 0.005
+    filter_kwargs["lng__gte"] = float(lng) - 0.005
+    filter_kwargs["lng__lte"] = float(lng) + 0.005
+  #print(filter_kwargs) # {'price__lte': '30', 'beds__gte': '2', 'bathrooms__gte': '2'}
+  #print(*filter_kwargs) # price__lte beds__gte bathrooms__gte (unpacked)
+  # **filter_kwargs 는 모든 것을 price__lte='30', beds__gte='2', bathrooms__gte='2'이렇게 보이도록 바꿈 (unpacked X2)
   # manual paginator
   paginator = OwnPagination()
   # 모든 room이 아닌 조건에 맞는 room만 가져옴
-  rooms = Room.objects.filter()
+  try:
+    rooms = Room.objects.filter(**filter_kwargs) # argument들을 filter에 전달 (** -> double expansion 또는 unpacking)
+  except ValueError:
+    # query로 이상한 값을 보낼 경우, 모든 room을 리턴함 (에러 처리)
+    rooms = Room.objects.all() 
+
   results = paginator.paginate_queryset(rooms, request)
   serializer = RoomSerializer(results, many=True)
   return paginator.get_paginated_response(serializer.data) # 단순 serializer 리턴 대신, paginator의 응답을 리턴해줌(count, previous, next 정보)
