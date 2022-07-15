@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from users.serializers import RelatedUserSerializer
+from users.serializers import UserSerializer
 from .models import Room
 
 '''
@@ -95,7 +95,9 @@ class RoomSerializer(serializers.Serializer):
 # ReadRoomSerializer와 WriteRoomSerializer를 하나로 통합하여 사용 ** 
 class RoomSerializer(serializers.ModelSerializer):
 
-  user = RelatedUserSerializer()
+  user = UserSerializer(read_only=True) # DRF HTML form에서 read_only_fields에 추가한 내용들 사라지게 함(read_only=True)
+  # MethodField() 사용
+  is_fav = serializers.SerializerMethodField()
   
   class Meta:
     model = Room
@@ -115,6 +117,24 @@ class RoomSerializer(serializers.ModelSerializer):
     if check_in == check_out:
         raise serializers.ValidationError("Not enough time between changes")
     return data # 반드시 return을 해줘야 validated_data에 나타남
+
+  # self == serializer 객체, obj == room 객체
+  def get_is_fav(self, obj):
+    request = self.context.get("request")
+    # print(request.user)
+    # 이 room이 user의 관심목록에 있는지 체크
+    if request:
+      user = request.user
+      if user.is_authenticated:
+        return obj in user.favs.all()
+    return False
+
+  # save 메서드 오버라이딩
+  def create(self, validated_data):
+    # get_serializer_context() 함수가 이미 context(request)를 보내고 있음!
+    request = self.context.get('request')
+    room = Room.objects.create(**validated_data, user=request.user) # 유저 정보 포함
+    return room
 
 '''
 # 2.See Room에 사용될 serializer

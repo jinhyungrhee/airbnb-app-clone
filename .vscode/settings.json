@@ -1,0 +1,12 @@
+{
+  "python.pythonPath": "/c/Users/Jinhyung/.virtualenvs/airbnb-api-blueprint-2qaG5wDH/Scripts/python",
+  // "python.linting.flake8Enabled": true,
+  // "python.linting.pylintEnabled": false,
+  // "python.linting.enabled": true,
+  // "python.formatting.provider": "black",
+  // "python.linting.flake8Args": ["--max-line-length=88"],
+  "python.analysis.extraPaths": [
+    "C:\\Users\\Jinhyung\\.virtualenvs\\airbnb-api-blueprint-2qaG5wDH\\Lib\\site-packages"
+  ]
+  
+}

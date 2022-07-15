@@ -149,3 +149,9 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
     ]
 }
+
+# 배포 시 BrowsableAPIRenderer가 외부에 보여지지 않도록 설정
+if not DEBUG:
+	REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [
+    	"rest_framework.renderers.JSONRenderer",
+    ]

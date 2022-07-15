@@ -55,13 +55,13 @@ class UserSerializer(serializers.ModelSerializer):
   class Meta:
     model = User
     fields = (
-      "id", 
-      "username", 
-      "first_name", 
-      "last_name", 
-      "email",
-      "avatar", 
-      "superhost",
+      "id",  # UserAdmin.fieldsets (기본제공?)
+      "username", # UserAdmin.fieldsets (기본제공?)
+      "first_name", # UserAdmin.fieldsets (기본제공?)
+      "last_name", # UserAdmin.fieldsets (기본제공?)
+      "email", # UserAdmin.fieldsets (기본제공?)
+      "avatar", # custom fields
+      "superhost", # custom fields
       "password", # 여기 field가 있으면 field가 보여지는 형태도 바꿀 수 있음!(validated_data에도 등장!)
     )
     read_only_fields = ("id", "superhost", "avatar")

@@ -1,12 +1,16 @@
 # from rest_framework.decorators import api_view # (1)함수형 뷰 사용
 from rest_framework.views import APIView # (2)클래스형 뷰 사용
 # from rest_framework.generics import ListAPIView, RetrieveAPIView # (3)제네릭 뷰 사용
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.viewsets import ModelViewSet
+from rest_framework import permissions
 from .models import Room
 from .serializers import RoomSerializer
+from .permissions import IsOwner
 
 # 1. ListRooms
 # (1)함수형 뷰 사용 : api_view (제네릭뷰가 아니기 때문에 pagination 기능 X)
@@ -40,12 +44,14 @@ def rooms_view(request):
   # return Response(data=serialized_rooms.data)
 '''
 
-# custom pagination
-class OwnPagination(PageNumberPagination):
-  page_size = 20
-  # 원하는 설정 추가 가능
+# custom pagination (ViewSets를 사용하면 따로 설정할 필요X)
+# class OwnPagination(PageNumberPagination):
+#   page_size = 20
+#   # 원하는 설정 추가 가능
 
 # (2) 클래스형 뷰 사용 : APIView
+# RoomsView 삭제하고 ViewSets 사용하여 간단하게 구현*
+'''
 class RoomsView(APIView):
   def get(self, request):
     # Manual Pagination(ViewSet을 이용하면 자동으로 해줌)
@@ -53,7 +59,7 @@ class RoomsView(APIView):
     rooms = Room.objects.all()
     # reqeust를 paginator에게 parsing해줌 -> paginator가 page query argument를 찾아내야 함(/?page=2)
     results = paginator.paginate_queryset(rooms, request)
-    serializer = RoomSerializer(results, many=True)
+    serializer = RoomSerializer(results, many=True, context={"request":request})
     return paginator.get_paginated_response(serializer.data) # 단순 serializer 리턴 대신, paginator의 응답을 리턴해줌(count, previous, next 정보)
 
   def post(self, request): 
@@ -72,6 +78,7 @@ class RoomsView(APIView):
     else:
       # print(serializer.errors)
       return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST) # respones로 에러메시지 보내기
+  '''
 
 '''
 # (3) 제네릭 뷰 사용 : ListAPIView (많은 것을 커스터마이징할 필요 없을 때 간단하게 사용)
@@ -82,6 +89,69 @@ class ListRoomsView(ListAPIView):
   # [serializer_class 필요]
   serializer_class = RoomSerializer
 '''
+
+# (4) ViewSets 사용 
+class RoomViewSet(ModelViewSet):
+  
+  queryset = Room.objects.all()
+  serializer_class = RoomSerializer
+
+  # ViewSet의 권한 설정
+  def get_permissions(self):
+    
+    # GET /rooms 또는 GET /rooms/1
+    if self.action == "list" or self.action == "retrieve":
+      permission_classes = [permissions.AllowAny] # 누구나 접근 가능
+    elif self.action == "create":
+      permission_classes = [permissions.IsAuthenticated] # 로그인된 유저만 가능
+    # DELETE /rooms/1 또는 PUT /rooms/1
+    else:
+      permission_classes = [IsOwner]
+    # permission_classes에 있는 모든 permission 메서드를 호출함
+    return [permission() for permission in permission_classes]
+
+  # action 데코레이터를 사용하면 함수명이 곧 url path가 됨!
+  @action(detail=False)
+  def search(self, request):
+    # argument로 보내질 것들(/?max_price=30)
+    max_price = request.GET.get('max_price', None) # 만약 url에 포함되어 있지 않으면, 그 argument는 None이라는 의미
+    min_price = request.GET.get('min_price', None)
+    beds = request.GET.get('beds', None)
+    bedrooms = request.GET.get('bedrooms', None)
+    bathrooms = request.GET.get('bathrooms', None)
+    lat = request.GET.get('lat', None)
+    lng = request.GET.get('lng', None)
+    # 여러 조건들로 가득찬 dictionary 생성
+    filter_kwargs = {}
+    # __lte(less than or equal), __gte(greater than or equal), __startswith 연산 제공(DRF)
+    if max_price is not None:
+      filter_kwargs["price__lte"] = max_price
+    if min_price is not None:
+      filter_kwargs["price__gte"] = min_price
+    if beds is not None:
+      filter_kwargs["beds__gte"] = beds
+    if bedrooms is not None:
+      filter_kwargs["bedrooms__gte"] = bedrooms
+    if bathrooms is not None:
+      filter_kwargs["bathrooms__gte"] = bathrooms
+    if lat is not None and lng is not None: # radius search
+      filter_kwargs["lat__gte"] = float(lat) - 0.005
+      filter_kwargs["lat__lte"] = float(lat) + 0.005
+      filter_kwargs["lng__gte"] = float(lng) - 0.005
+      filter_kwargs["lng__lte"] = float(lng) + 0.005
+    paginator = self.paginator # ModelViewSet에서 제공하는 paginator
+    # 모든 room이 아닌 조건에 맞는 room만 가져옴
+    try:
+      rooms = Room.objects.filter(**filter_kwargs) # argument들을 filter에 전달 (** -> double expansion 또는 unpacking)
+    except ValueError:
+      # query로 이상한 값을 보낼 경우, 모든 room을 리턴함 (에러 처리)
+      rooms = Room.objects.all() 
+
+    results = paginator.paginate_queryset(rooms, request)
+    serializer = RoomSerializer(results, many=True)
+    return paginator.get_paginated_response(serializer.data)
+
+
 
 # ----------------------------------------------------------------------------------------------------- #
 
@@ -96,7 +166,8 @@ class SeeRoomView(RetrieveAPIView):
   # [pk customizing]
   # lookup_url_kwarg = "pkkk"
 '''
-
+# RoomView 삭제하고 ViewSets로 간단하게 구현**
+'''
 class RoomView(APIView):
   # pk로 Room Detail 정보를 가져오는 함수
   def get_room(self, pk):
@@ -115,14 +186,13 @@ class RoomView(APIView):
       return Response(serializer)
     else:
       return Response(status=status.HTTP_404_NOT_FOUND)
-    '''
-    try:
-      room = Room.objects.get(pk=pk)
-      serializer = ReadRoomSerializer(room).data
-      return Response(serializer)
-    except Room.DoesNotExist:
-      return Response(status=status.HTTP_404_NOT_FOUND)
-    '''
+    # try:
+    #   room = Room.objects.get(pk=pk)
+    #   serializer = ReadRoomSerializer(room).data
+    #   return Response(serializer)
+    # except Room.DoesNotExist:
+    #   return Response(status=status.HTTP_404_NOT_FOUND)
+    
 
   def put(self, request, pk):
     room = self.get_room(pk)
@@ -150,50 +220,51 @@ class RoomView(APIView):
       return Response(status=status.HTTP_200_OK)
     else:
       return Response(status=status.HTTP_404_NOT_FOUND)
+  '''
 
 # Room Search
 # TODO1 : 원하는 Room 찾기
 # TODO2 : Pagenation
-@api_view(["GET"])
-def room_search(request):
-  # argument로 보내질 것들(/?max_price=30)
-  max_price = request.GET.get('max_price', None) # 만약 url에 포함되어 있지 않으면, 그 argument는 None이라는 의미
-  min_price = request.GET.get('min_price', None)
-  beds = request.GET.get('beds', None)
-  bedrooms = request.GET.get('bedrooms', None)
-  bathrooms = request.GET.get('bathrooms', None)
-  lat = request.GET.get('lat', None)
-  lng = request.GET.get('lng', None)
-  # 여러 조건들로 가득찬 dictionary 생성
-  filter_kwargs = {}
-  # __lte(less than or equal), __gte(greater than or equal), __startswith 연산 제공(DRF)
-  if max_price is not None:
-    filter_kwargs["price__lte"] = max_price
-  if min_price is not None:
-    filter_kwargs["price__gte"] = min_price
-  if beds is not None:
-    filter_kwargs["beds__gte"] = beds
-  if bedrooms is not None:
-    filter_kwargs["bedrooms__gte"] = bedrooms
-  if bathrooms is not None:
-    filter_kwargs["bathrooms__gte"] = bathrooms
-  if lat is not None and lng is not None: # radius search
-    filter_kwargs["lat__gte"] = float(lat) - 0.005
-    filter_kwargs["lat__lte"] = float(lat) + 0.005
-    filter_kwargs["lng__gte"] = float(lng) - 0.005
-    filter_kwargs["lng__lte"] = float(lng) + 0.005
-  #print(filter_kwargs) # {'price__lte': '30', 'beds__gte': '2', 'bathrooms__gte': '2'}
-  #print(*filter_kwargs) # price__lte beds__gte bathrooms__gte (unpacked)
-  # **filter_kwargs 는 모든 것을 price__lte='30', beds__gte='2', bathrooms__gte='2'이렇게 보이도록 바꿈 (unpacked X2)
-  # manual paginator
-  paginator = OwnPagination()
-  # 모든 room이 아닌 조건에 맞는 room만 가져옴
-  try:
-    rooms = Room.objects.filter(**filter_kwargs) # argument들을 filter에 전달 (** -> double expansion 또는 unpacking)
-  except ValueError:
-    # query로 이상한 값을 보낼 경우, 모든 room을 리턴함 (에러 처리)
-    rooms = Room.objects.all() 
+# @api_view(["GET"])
+# def room_search(request):
+#   # argument로 보내질 것들(/?max_price=30)
+#   max_price = request.GET.get('max_price', None) # 만약 url에 포함되어 있지 않으면, 그 argument는 None이라는 의미
+#   min_price = request.GET.get('min_price', None)
+#   beds = request.GET.get('beds', None)
+#   bedrooms = request.GET.get('bedrooms', None)
+#   bathrooms = request.GET.get('bathrooms', None)
+#   lat = request.GET.get('lat', None)
+#   lng = request.GET.get('lng', None)
+#   # 여러 조건들로 가득찬 dictionary 생성
+#   filter_kwargs = {}
+#   # __lte(less than or equal), __gte(greater than or equal), __startswith 연산 제공(DRF)
+#   if max_price is not None:
+#     filter_kwargs["price__lte"] = max_price
+#   if min_price is not None:
+#     filter_kwargs["price__gte"] = min_price
+#   if beds is not None:
+#     filter_kwargs["beds__gte"] = beds
+#   if bedrooms is not None:
+#     filter_kwargs["bedrooms__gte"] = bedrooms
+#   if bathrooms is not None:
+#     filter_kwargs["bathrooms__gte"] = bathrooms
+#   if lat is not None and lng is not None: # radius search
+#     filter_kwargs["lat__gte"] = float(lat) - 0.005
+#     filter_kwargs["lat__lte"] = float(lat) + 0.005
+#     filter_kwargs["lng__gte"] = float(lng) - 0.005
+#     filter_kwargs["lng__lte"] = float(lng) + 0.005
+#   #print(filter_kwargs) # {'price__lte': '30', 'beds__gte': '2', 'bathrooms__gte': '2'}
+#   #print(*filter_kwargs) # price__lte beds__gte bathrooms__gte (unpacked)
+#   # **filter_kwargs 는 모든 것을 price__lte='30', beds__gte='2', bathrooms__gte='2'이렇게 보이도록 바꿈 (unpacked X2)
+#   # manual paginator
+#   paginator = OwnPagination()
+#   # 모든 room이 아닌 조건에 맞는 room만 가져옴
+#   try:
+#     rooms = Room.objects.filter(**filter_kwargs) # argument들을 filter에 전달 (** -> double expansion 또는 unpacking)
+#   except ValueError:
+#     # query로 이상한 값을 보낼 경우, 모든 room을 리턴함 (에러 처리)
+#     rooms = Room.objects.all() 
 
-  results = paginator.paginate_queryset(rooms, request)
-  serializer = RoomSerializer(results, many=True)
-  return paginator.get_paginated_response(serializer.data) # 단순 serializer 리턴 대신, paginator의 응답을 리턴해줌(count, previous, next 정보)
+#   results = paginator.paginate_queryset(rooms, request)
+#   serializer = RoomSerializer(results, many=True)
+#   return paginator.get_paginated_response(serializer.data) # 단순 serializer 리턴 대신, paginator의 응답을 리턴해줌(count, previous, next 정보)
